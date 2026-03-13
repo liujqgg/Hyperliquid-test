@@ -1,5 +1,5 @@
 """
-账户测试：余额、清算所状态结构、余额一致性。
+账户测试：余额、Hyperliquid 状态结构、余额一致性。
 """
 import pytest
 import allure
@@ -13,7 +13,7 @@ from utils.retry import retry
 class TestAccount:
     """账户状态与余额相关测试。"""
 
-    @allure.title("清算所状态：结构、字段类型与 withdrawable 非负")
+    @allure.title("Hyperliquid 状态：结构、字段类型与 withdrawable 非负")
     @allure.description("POST info clearinghouseState，校验返回结构、assetPositions、marginSummary 及 withdrawable 可解析为非负数字")
     @retry(exceptions=(AssertionError, HyperliquidAPIError))
     def test_clearinghouse_state(self, client):
