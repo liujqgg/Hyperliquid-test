@@ -1,6 +1,6 @@
 # Hyperliquid Testnet API 自动化测试框架
 
-Python 3.11 实现的 Hyperliquid Testnet API 自动化测试框架，使用 **pytest**、**Allure** 报告与 **Locust** 压测，**不依赖** Hyperliquid 官方/社区 SDK，直接调用 REST API 并自行实现 L1 签名。
+Python 3.11 实现的 Hyperliquid Testnet API 自动化测试框架，使用 **pytest** 与 **Allure** 报告，**不依赖** Hyperliquid 官方/社区 SDK，直接调用 REST API 并自行实现 L1 签名。
 
 ---
 
@@ -21,7 +21,6 @@ Python 3.11 实现的 Hyperliquid Testnet API 自动化测试框架，使用 **p
 |----------|------|
 | 测试框架 | pytest |
 | 报告     | allure-pytest |
-| 压测     | locust |
 | 配置     | YAML + 环境变量（`config/loader.py` 合并） |
 | 签名     | 自实现（msgpack + EIP-712 phantom agent，无 SDK） |
 
@@ -52,7 +51,6 @@ scripts/
 └── fetch_order_history.py # 命令行拉取历史委托/成交并保存 JSON
 logs/                    # 测试运行日志（test_run.log），已 gitignore
 conftest.py              # pytest 公共 fixture（client、default_symbol、unique_cloid、日志）
-locustfile.py            # Locust 压测（Info 接口）
 pytest.ini
 requirements.txt
 README.md
@@ -80,7 +78,7 @@ pytest
 ## 环境与依赖
 
 - **Python**：3.11+
-- **依赖**：`pip install -r requirements.txt`（含 pytest、allure-pytest、locust、requests、eth-account、msgpack 等）
+- **依赖**：`pip install -r requirements.txt`（含 pytest、allure-pytest、requests、eth-account、msgpack 等）
 
 ## 配置
 
@@ -107,17 +105,6 @@ pytest tests/ -v --tb=short
 # 生成 Allure 结果并查看报告
 pytest --alluredir=allure-results
 allure serve allure-results
-```
-
-## 压测（Locust）
-
-```bash
-# 默认连接 testnet
-locust -f locustfile.py --host=https://api.hyperliquid-testnet.xyz
-
-# 可选：设置钱包以压测 clearinghouseState
-export HYPERLIQUID_WALLET_ADDRESS=0x...
-locust -f locustfile.py --host=https://api.hyperliquid-testnet.xyz
 ```
 
 ## 测试日志（请求/响应）

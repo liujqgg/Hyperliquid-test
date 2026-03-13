@@ -1,4 +1,5 @@
 # --- 密钥与本地配置（勿提交）---
+技术要求-SDET.md
 config/config.yaml
 config/config.local.yaml
 .env
@@ -45,10 +46,6 @@ allure-report/
 # --- 运行日志 ---
 logs/
 *.log
-
-# --- Locust ---
-*.csv
-locust_stats/
 
 # --- IDE / 编辑器 ---
 .idea/

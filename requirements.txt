@@ -13,8 +13,5 @@ pytest>=7.4.0
 pytest-asyncio>=0.21.0
 allure-pytest>=2.13.0
 
-# Load testing
-locust>=2.20.0
-
 # Logging / quality
 python-json-logger>=2.0.0

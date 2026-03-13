@@ -120,7 +120,7 @@ class HyperliquidClient:
         return self._post_info({"type": "metaAndAssetCtxs"})
 
     def clearinghouse_state(self, user: Optional[str] = None) -> dict:
-        """查询用户清算所状态（余额、持仓）。"""
+        """查询用户在系统中的状态（余额、持仓）。"""
         return self._post_info({"type": "clearinghouseState", "user": self._user(user)})
 
     def open_orders(self, user: Optional[str] = None) -> list:
