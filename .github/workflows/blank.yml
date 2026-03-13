@@ -9,6 +9,10 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Node 20 在 Actions 内逐步弃用，2026-06-02 起 runner 默认 Node 24；提前用 Node 24 跑 JS Actions 见：
+    # https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     strategy:
       matrix:
         python-version: ['3.11']
