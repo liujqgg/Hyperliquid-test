@@ -16,7 +16,9 @@ from utils.exceptions import HyperliquidAPIError
 # 市价单 TIF：FrontendMarket 使前端/交易所显示为市价单；不支持时改为 "Ioc"
 MARKET_TIF = "FrontendMarket"
 
-MIN_NOTIONAL = 11.0  # 略大于交易所 10，避免舍入后不足
+MIN_NOTIONAL = 11.0  # 略大于交易所 $10，避免舍入后不足
+# 部分减仓时单笔仍须 ≥ $10；开仓至少 2 倍，保证「减半」仍满足最小名义金额
+MIN_OPEN_NOTIONAL_FOR_PARTIAL = MIN_NOTIONAL * 2.2
 
 
 def _mid_price(client, symbol: str) -> float:
@@ -38,6 +40,17 @@ def _position_size(pos: dict) -> float:
     return abs(float(szi)) if szi is not None else 0.0
 
 
+def _position_szi(pos: dict) -> float:
+    """有符号持仓：多正空负。"""
+    raw = pos.get("szi") or pos.get("size")
+    return float(raw) if raw is not None else 0.0
+
+
+def _reduce_close_is_buy(pos: dict) -> bool:
+    """减仓/平仓方向：空头须买入平仓；多头须卖出平仓。"""
+    return _position_szi(pos) < 0
+
+
 def _market_price_hint(mid: float, is_buy: bool) -> float:
     """市价单价格提示（激进价）：买略高于 mid，卖略低于 mid。"""
     if is_buy:
@@ -45,22 +58,25 @@ def _market_price_hint(mid: float, is_buy: bool) -> float:
     return round(mid * 0.999, 2) if mid > 1 else round(mid * 0.999, 6)
 
 
-def _market_size_rounded(client, symbol: str, mid: float, is_buy: bool) -> tuple[float, float]:
-    """市价开仓用：数量与价格，按标的精度舍入，保证名义价值 >= 10。"""
+def _market_size_rounded(
+    client, symbol: str, mid: float, is_buy: bool, min_notional_usd: float = MIN_NOTIONAL
+) -> tuple[float, float]:
+    """市价单数量与价格，按标的精度舍入，保证名义价值 >= min_notional_usd（交易所单笔最低约 $10）。"""
     price_hint = _market_price_hint(mid, is_buy)
-    size = max(0.001, 12.0 / max(price_hint, 0.01))
+    need = max(10.0, min_notional_usd)
+    size = max(0.001, (need + 1) / max(price_hint, 0.01))
     sz_decimals = client.get_sz_decimals(symbol)
     actual_px = client.round_order_price(symbol, price_hint)
     tick = 10 ** (-sz_decimals)
-    size = max(size, MIN_NOTIONAL / max(actual_px, 1e-8))
+    size = max(size, need / max(actual_px, 1e-8))
     size = round(size, sz_decimals)
     if size < tick:
         size = tick
-    if size * actual_px < 10:
-        size = round(MIN_NOTIONAL / actual_px, sz_decimals)
+    if size * actual_px < need:
+        size = round(need / actual_px, sz_decimals)
         if size < tick:
             size = tick
-        if size * actual_px < 10:
+        if size * actual_px < need:
             size = round(size + tick, sz_decimals)
     return size, price_hint
 
@@ -100,7 +116,10 @@ class TestMarketOrder:
         if mid <= 0:
             pytest.skip("无中间价")
         is_buy = random.choice([True, False])
-        size, price_hint = _market_size_rounded(client, default_symbol, mid, is_buy)
+        # 开仓名义要够大，否则「减半减仓」会低于 $10 被交易所拒绝
+        size, price_hint = _market_size_rounded(
+            client, default_symbol, mid, is_buy, min_notional_usd=MIN_OPEN_NOTIONAL_FOR_PARTIAL
+        )
 
         # 1. 市价开仓
         resp = _place_market_order(client, default_symbol, is_buy, size, price_hint, reduce_only=False, cloid=unique_cloid)
@@ -113,23 +132,72 @@ class TestMarketOrder:
         assert pos is not None, "开仓后应有持仓"
         open_sz = _position_size(pos)
         assert open_sz >= 0.001, "持仓数量应大于 0"
+        # 必须用真实持仓方向，不能只用开仓时的 is_buy（与 not is_buy 在边界/重试下易错位）
+        close_side_buy = _reduce_close_is_buy(pos)
+        px_close = client.round_order_price(default_symbol, _market_price_hint(mid, close_side_buy))
+        sz_dec = client.get_sz_decimals(default_symbol)
+        tick = 10 ** (-sz_dec)
+        min_sz_for_10 = MIN_NOTIONAL / max(px_close, 1e-8)
+        min_sz_for_10 = round(min_sz_for_10, sz_dec)
+        if min_sz_for_10 < tick:
+            min_sz_for_10 = tick
 
-        # 3. 减仓（约一半）
-        reduce_sz = round(open_sz * 0.5, 6)
-        if reduce_sz < 0.001:
-            reduce_sz = open_sz
-        reduce_resp = _place_market_order(client, default_symbol, not is_buy, reduce_sz, _market_price_hint(mid, not is_buy), reduce_only=True)
-        _assert_order_ok(reduce_resp)
+        # 3. 减仓：仅当「减半」与「剩余」两笔都能满足 $10 名义；否则一次满仓平掉
+        half_sz = round(open_sz * 0.5, sz_dec)
+        if half_sz < tick:
+            half_sz = tick
+        remainder_after_half = open_sz - half_sz
+        rem_notional = remainder_after_half * px_close
+        can_partial = (
+            half_sz >= min_sz_for_10
+            and remainder_after_half >= tick
+            and rem_notional >= MIN_NOTIONAL
+            and half_sz < open_sz - tick * 0.5
+        )
+        if can_partial:
+            reduce_sz = max(min_sz_for_10, min(half_sz, open_sz - tick))
+            reduce_sz = min(reduce_sz, open_sz - tick)
+            if reduce_sz <= 0 or open_sz - reduce_sz < tick or (open_sz - reduce_sz) * px_close < MIN_NOTIONAL:
+                can_partial = False
+        if can_partial:
+            reduce_resp = _place_market_order(
+                client,
+                default_symbol,
+                close_side_buy,
+                reduce_sz,
+                _market_price_hint(mid, close_side_buy),
+                reduce_only=True,
+            )
+            _assert_order_ok(reduce_resp)
+            _wait_settle()
+            state2 = client.clearinghouse_state()
+            pos2 = _get_position(state2, default_symbol)
+            assert pos2 is not None, "减仓后应有持仓"
+            remaining_sz = _position_size(pos2)
+            assert remaining_sz < open_sz, "部分减仓后持仓应缩小"
+            close_side_buy = _reduce_close_is_buy(pos2)
+        else:
+            remaining_sz = open_sz
 
-        # 4. 再查仓位
+        # 4. 平仓（方向再次按当前持仓）
         _wait_settle()
-        state2 = client.clearinghouse_state()
-        pos2 = _get_position(state2, default_symbol)
-        assert pos2 is not None, "减仓后仍有剩余持仓"
-        remaining_sz = _position_size(pos2)
-        assert remaining_sz <= open_sz, "减仓后持仓应小于开仓后"
-
-        # 5. 平仓
-        if remaining_sz >= 0.001:
-            close_resp = _place_market_order(client, default_symbol, not is_buy, remaining_sz, _market_price_hint(mid, not is_buy), reduce_only=True)
-            _assert_order_ok(close_resp)
+        state3 = client.clearinghouse_state()
+        pos3 = _get_position(state3, default_symbol)
+        if pos3 is None or _position_size(pos3) < tick:
+            return
+        remaining_sz = _position_size(pos3)
+        close_side_buy = _reduce_close_is_buy(pos3)
+        px_out = client.round_order_price(default_symbol, _market_price_hint(mid, close_side_buy))
+        # 剩余名义不足 $10 时只能一次性平掉（整仓 reduce_only）
+        close_sz = round(remaining_sz, sz_dec)
+        if close_sz * px_out < MIN_NOTIONAL:
+            close_sz = remaining_sz
+        close_resp = _place_market_order(
+            client,
+            default_symbol,
+            close_side_buy,
+            close_sz,
+            _market_price_hint(mid, close_side_buy),
+            reduce_only=True,
+        )
+        _assert_order_ok(close_resp)
