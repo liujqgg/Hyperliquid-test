@@ -1,0 +1,44 @@
+# Hyperliquid 测试网 API 测试框架配置
+# 与 config.yaml 结构一致；复制为 config/config.yaml 后填写 private_key（勿提交真实私钥）
+# 可通过环境变量或 config/config.local.yaml 覆盖
+
+api:
+  # 测试网: https://api.hyperliquid-testnet.xyz
+  # 主网: https://api.hyperliquid.xyz
+  base_url: "https://api.hyperliquid-testnet.xyz"
+  info_path: "/info"
+  exchange_path: "/exchange"
+  timeout_seconds: 30
+
+# 测试用钱包（请使用测试网钱包；勿提交真实私钥）
+# 可选：通过环境变量 HYPERLIQUID_PRIVATE_KEY、HYPERLIQUID_WALLET_ADDRESS 设置
+wallet:
+  # 示例测试网钱包（仅供少量使用）
+  address: "0xa4022bdfa1e6d546f26905111fc62b0b8887d482"
+  private_key: "0x..."  # 与 config.yaml 不同步：本地填写，勿提交
+
+# 测试行为
+test:
+  # 订单/仓位测试的默认交易对（须在测试网存在）
+  default_symbol: "SOL"
+  # 最小订单名义价值（如 HL 上约 $10）
+  min_order_notional_usd: 10
+  # 下单后等待再查状态的间隔（毫秒）
+  order_settle_ms: 2000
+  # 重试
+  retry_times: 3
+  retry_delay_seconds: 2
+  # wait_until 轮询间隔（毫秒）
+  poll_interval_ms: 500
+  poll_timeout_seconds: 30
+  # 并发测试：同时下单笔数 / Info 并发读次数
+  concurrent_orders_n: 5
+  concurrent_info_calls_n: 8
+
+# 日志
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  format: "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
+  # 测试/请求/响应写入文件的目录与文件名
+  dir: "logs"
+  file: "test_run.log"

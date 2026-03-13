@@ -1,0 +1,68 @@
+# --- 密钥与本地配置（勿提交）---
+config/config.yaml
+config/config.local.yaml
+.env
+.env.*
+!.env.example
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# --- 虚拟环境 ---
+myvenv/
+venv/
+.venv/
+env/
+
+# --- 测试 / 报告 ---
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+allure-results/
+allure-report/
+
+# --- 运行日志 ---
+logs/
+*.log
+
+# --- Locust ---
+*.csv
+locust_stats/
+
+# --- IDE / 编辑器 ---
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# --- macOS ---
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# --- 杂项 ---
+*.bak
+.tmp/
+temp/

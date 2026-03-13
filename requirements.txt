@@ -1,0 +1,20 @@
+# Hyperliquid Testnet API Test Framework - Python 3.11
+# Core
+requests>=2.31.0
+PyYAML>=6.0.1
+
+# Signing (no Hyperliquid SDK - we implement signing ourselves)
+eth-account>=0.10.0
+eth-utils>=2.3.0
+msgpack>=1.0.7
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+allure-pytest>=2.13.0
+
+# Load testing
+locust>=2.20.0
+
+# Logging / quality
+python-json-logger>=2.0.0
